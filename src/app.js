@@ -46,20 +46,9 @@ app.post("/participants", (req, res) => {
         lastStatus: Date.now()
     }
 
-    // validations
+    // validations for name
 
-    // Is the name present in de database?
-
-    participants.find({}).toArray().then((obj) => {
-        const isNameUsed = obj.find((item)=> item.name === name)
-
-         if (isNameUsed) {
-            res.sendStatus(409)
-            return
-        } 
-    })
-
-    // Validations using JOI 
+    // Validations using JOI
 
     const schema = Joi.string().min(2).max(10).required()
 
@@ -73,30 +62,46 @@ app.post("/participants", (req, res) => {
         return
     }
 
-    // inserting in mongodB's collection uolMockServerParticipants and login message in uolMockServerMessages
+    // Is the name present in de database? If not then proceed with post
 
-    participants.insertOne(toAdd).then(() => {
-        let now = dayjs()
+    participants.find({}).toArray().then((obj) => {
+        const isNameUsed = obj.find((item) => item.name === name)
+        let result;
+        if (isNameUsed) {
+            res.sendStatus(409)
+            return
+        }
 
-        const loginMessage = { from: `${name}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
+        else {
+            // inserting in mongodB's collection uolMockServerParticipants and login message in uolMockServerMessages
 
-        messages.insertOne(loginMessage).then(() => {
-            res.sendStatus(201)
-        })
-            .catch((err) => {
-                console.log(err)
+            participants.insertOne(toAdd).then(() => {
+
+                console.log("entrou no participants")
+
+                let now = dayjs()
+
+                const loginMessage = { from: `${name}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
+
+                messages.insertOne(loginMessage).then(() => {
+                    res.sendStatus(201)
+                })
+                    .catch((err) => {
+                        console.log(err)
+                    })
             })
+        }
+
     })
-        .catch((err) => {
-            console.log(err)
-        })
+
+
 })
 
-/* app.get("/", (req, res) => {
-    db.collection("").toArray().find().then(() => {
-
-    }).catch(() => console.log())
-})  */
+app.get("/participants", (req, res) => {
+    participants.find({}).toArray().then((obj) => {
+        res.send(obj)
+    })
+})
 
 
 app.listen(5000, () => console.log("running in port 5000"))
