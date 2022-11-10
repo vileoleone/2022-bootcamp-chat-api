@@ -103,5 +103,29 @@ app.get("/participants", (req, res) => {
     })
 })
 
+app.post("/messages", async (req, res) => {
+    try {
+        let now = dayjs()
+        const { to, text, type } = req.body
+        const { user } = req.headers
+
+        const messageUnit = {
+            from: user,
+            to,
+            text,
+            type,
+            time: `${now.format('HH:mm:ss')}`
+        }
+
+        await messages.insertOne(messageUnit);
+        res.sendStatus(201);
+
+    }
+    
+    catch (error) {
+        console.log(error)
+    }
+})
+
 
 app.listen(5000, () => console.log("running in port 5000"))
