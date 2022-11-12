@@ -50,13 +50,13 @@ app.post("/participants", (req, res) => {
 
     // Validations using JOI
 
-    const schema = Joi.string().min(2).max(10).required()
+    const schema = Joi.string().min(2).required()
 
     const { error, value } = schema.validate(name);
 
     if (error !== undefined) {
         res.status(422).json({
-            message: 'Invalid request',
+            message: error.message,
             data: name
         })
         return
@@ -76,13 +76,12 @@ app.post("/participants", (req, res) => {
             // inserting in mongodB's collection uolMockServerParticipants and login message in uolMockServerMessages
 
             participants.insertOne(toAdd).then(() => {
-
                 let now = dayjs()
 
                 const loginMessage = { from: `${name}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
 
                 messages.insertOne(loginMessage).then(() => {
-                    res.sendStatus(201)
+                    res.status(201).send(`Bem vindo ${name}`)
                 })
                     .catch((err) => {
                         console.log(err)
@@ -109,7 +108,7 @@ app.post("/messages", async (req, res) => {
         const { to, text, type } = req.body
         const { user } = req.headers
 
-
+        console.log(to)
         // validation of user in Databank
 
         const validateUser = await participants.findOne({ name: user })
@@ -143,6 +142,18 @@ app.post("/messages", async (req, res) => {
 
         });
 
+        // Validation of private_message receiver 
+
+        if (type === "private_message") {
+            
+            const validateReceiver = await participants.findOne({ name: to })
+
+            if (!validateReceiver) {
+                res.status(404).send(validateUser)
+                return
+            }   
+        }
+         
         //Declaring object to be sent to database
 
         const messageUnit = {
@@ -163,7 +174,7 @@ app.post("/messages", async (req, res) => {
         }
 
         //Sendind to database
-
+        console.log("passando todas as validações")
         await messages.insertOne(messageUnit);
         res.sendStatus(201);
 
@@ -177,25 +188,39 @@ app.post("/messages", async (req, res) => {
 app.get("/messages", async (req, res) => {
 
     const limit = parseInt(req.query.limit)
-    const arrayOfMessages = await messages.find({}).toArray()
-    const userLogged = req.headers
+    const completeArrayOfMessages = await messages.find({}).toArray()
+    const { user } = req.headers
+    
+    // validando o nome do usuário no request do get
+
+    const validateUser = await participants.findOne({ name: user })
+
+    if (!validateUser) {
+        res.status(404).send("Usuário não Encontrado")
+        return
+    } 
 
     // filtrando as mensagens públicas e private messages direcionadas para o user
 
-    arrayOfMessages.filter((message) => {
-        if (message.from === userLogged || message.to === userLogged || message.type === "message") {
+    const filteredArrayOfMessages = completeArrayOfMessages.filter((message) => {
+        
+        //console.log(message.from)
+        if (message.from === user || message.to === user || message.type === "message") {
             return true
         }
 
     // message.type === "private_message" && message.to !== userLogged
-        else {return false}
+        else {
+            return false
+        }
     })
 
+    console.log(filteredArrayOfMessages)
 
     if (limit) {
 
         try {
-            const arrayToSend = arrayOfMessages.slice(-limit)
+            const arrayToSend = filteredArrayOfMessages.slice(-limit)
             res.send(arrayToSend)
             return
         }
@@ -206,7 +231,7 @@ app.get("/messages", async (req, res) => {
         }
     }
 
-    res.send(arrayOfMessages)
+    res.send(filteredArrayOfMessages)
 })
 
 
