@@ -77,8 +77,6 @@ app.post("/participants", (req, res) => {
 
             participants.insertOne(toAdd).then(() => {
 
-                console.log("entrou no participants")
-
                 let now = dayjs()
 
                 const loginMessage = { from: `${name}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
@@ -94,7 +92,6 @@ app.post("/participants", (req, res) => {
 
     })
 
-
 })
 
 app.get("/participants", (req, res) => {
@@ -105,9 +102,48 @@ app.get("/participants", (req, res) => {
 
 app.post("/messages", async (req, res) => {
     try {
+
+        //Setup for variables
+
         let now = dayjs()
         const { to, text, type } = req.body
         const { user } = req.headers
+
+
+        // validation of user in Databank
+
+        const validateUser = await participants.findOne({ name: user })
+        
+        if (!validateUser) {
+            res.status(404).send("Usuário não Encontrado")
+            return
+        } 
+    
+        // validation with JOI
+
+        const schema = Joi.object().keys({
+            from: Joi.string()
+                .min(1)
+                .required(),
+
+            to: Joi.string()
+                .min(1)
+                .required(),
+
+            text: Joi.string()
+                .min(1)
+                .required(),
+
+            type: Joi.string()
+                .min(1)
+                .required()
+                .valid('message', 'private_message'),
+
+            time: Joi.any()
+
+        });
+
+        //Declaring object to be sent to database
 
         const messageUnit = {
             from: user,
@@ -117,14 +153,60 @@ app.post("/messages", async (req, res) => {
             time: `${now.format('HH:mm:ss')}`
         }
 
+        // validating with JOI
+
+        const { error, value } = await schema.validate(messageUnit)
+
+        if (error) {
+            res.status(422).send(error.message)
+            return
+        }
+
+        //Sendind to database
+
         await messages.insertOne(messageUnit);
         res.sendStatus(201);
 
     }
-    
+
     catch (error) {
         console.log(error)
     }
+})
+
+app.get("/messages", async (req, res) => {
+
+    const limit = parseInt(req.query.limit)
+    const arrayOfMessages = await messages.find({}).toArray()
+    const userLogged = req.headers
+
+    // filtrando as mensagens públicas e private messages direcionadas para o user
+
+    arrayOfMessages.filter((message) => {
+        if (message.from === userLogged || message.to === userLogged || message.type === "message") {
+            return true
+        }
+
+    // message.type === "private_message" && message.to !== userLogged
+        else {return false}
+    })
+
+
+    if (limit) {
+
+        try {
+            const arrayToSend = arrayOfMessages.slice(-limit)
+            res.send(arrayToSend)
+            return
+        }
+
+        catch (error) {
+            res.sendStatus(400)
+            return
+        }
+    }
+
+    res.send(arrayOfMessages)
 })
 
 
