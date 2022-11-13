@@ -112,12 +112,12 @@ app.post("/messages", async (req, res) => {
         // validation of user in Databank
 
         const validateUser = await participants.findOne({ name: user })
-        
+
         if (!validateUser) {
             res.status(404).send("Usuário não Encontrado")
             return
-        } 
-    
+        }
+
         // validation with JOI
 
         const schema = Joi.object().keys({
@@ -145,15 +145,15 @@ app.post("/messages", async (req, res) => {
         // Validation of private_message receiver 
 
         if (type === "private_message") {
-            
+
             const validateReceiver = await participants.findOne({ name: to })
 
             if (!validateReceiver) {
                 res.status(404).send(validateUser)
                 return
-            }   
+            }
         }
-         
+
         //Declaring object to be sent to database
 
         const messageUnit = {
@@ -190,7 +190,7 @@ app.get("/messages", async (req, res) => {
     const limit = parseInt(req.query.limit)
     const completeArrayOfMessages = await messages.find({}).toArray()
     const { user } = req.headers
-    
+
     // validando o nome do usuário no request do get
 
     const validateUser = await participants.findOne({ name: user })
@@ -198,18 +198,18 @@ app.get("/messages", async (req, res) => {
     if (!validateUser) {
         res.status(404).send("Usuário não Encontrado")
         return
-    } 
+    }
 
     // filtrando as mensagens públicas e private messages direcionadas para o user
 
     const filteredArrayOfMessages = completeArrayOfMessages.filter((message) => {
-        
+
         //console.log(message.from)
         if (message.from === user || message.to === user || message.type === "message") {
             return true
         }
 
-    // message.type === "private_message" && message.to !== userLogged
+        // message.type === "private_message" && message.to !== userLogged
         else {
             return false
         }
@@ -233,6 +233,38 @@ app.get("/messages", async (req, res) => {
 
     res.send(filteredArrayOfMessages)
 })
+
+app.put("/status", async (req, res) => {
+    const { user } = req.headers
+    let now = dayjs()
+    // validation of user in Databank
+
+     const validateUser = await participants.findOne({ name: user })
+    if (!validateUser) {
+        res.status(404).send("Usuário não Encontrado")
+        return
+    }
+
+    const messageToUpdate = {
+        from: `${user}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
+
+    try {
+        await participants.updateOne({ name: user }, { $set: { lastStatus: Date.now() } })
+        console.log("no jeito")
+    } catch (error) {
+        res.send(422).send(error.message)
+    }
+
+    try {
+        await messages.insertOne(messageToUpdate);
+        console.log("no jeito 2")
+    } catch (error) {
+        res.send(422).send(error.message)
+    }
+         
+    res.sendStatus(200)
+
+});
 
 
 app.listen(5000, () => console.log("running in port 5000"))
