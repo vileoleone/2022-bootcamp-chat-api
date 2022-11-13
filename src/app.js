@@ -108,7 +108,6 @@ app.post("/messages", async (req, res) => {
         const { to, text, type } = req.body
         const { user } = req.headers
 
-        console.log(to)
         // validation of user in Databank
 
         const validateUser = await participants.findOne({ name: user })
@@ -174,7 +173,6 @@ app.post("/messages", async (req, res) => {
         }
 
         //Sendind to database
-        console.log("passando todas as validações")
         await messages.insertOne(messageUnit);
         res.sendStatus(201);
 
@@ -204,8 +202,7 @@ app.get("/messages", async (req, res) => {
 
     const filteredArrayOfMessages = completeArrayOfMessages.filter((message) => {
 
-        //console.log(message.from)
-        if (message.from === user || message.to === user || message.type === "message") {
+        if (message.from === user || message.to === user || message.type === "message" || message.to === "Todos") {
             return true
         }
 
@@ -214,8 +211,6 @@ app.get("/messages", async (req, res) => {
             return false
         }
     })
-
-    console.log(filteredArrayOfMessages)
 
     if (limit) {
 
@@ -234,37 +229,78 @@ app.get("/messages", async (req, res) => {
     res.send(filteredArrayOfMessages)
 })
 
-app.put("/status", async (req, res) => {
+app.post("/status", async (req, res) => {
     const { user } = req.headers
     let now = dayjs()
     // validation of user in Databank
 
-     const validateUser = await participants.findOne({ name: user })
+    const validateUser = await participants.findOne({ name: user })
+
     if (!validateUser) {
         res.status(404).send("Usuário não Encontrado")
         return
     }
 
-    const messageToUpdate = {
-        from: `${user}`, to: 'Todos', text: 'entra na sala...', type: 'status', time: `${now.format('HH:mm:ss')}` }
-
     try {
         await participants.updateOne({ name: user }, { $set: { lastStatus: Date.now() } })
-        console.log("no jeito")
+
     } catch (error) {
         res.send(422).send(error.message)
     }
 
-    try {
-        await messages.insertOne(messageToUpdate);
-        console.log("no jeito 2")
-    } catch (error) {
-        res.send(422).send(error.message)
-    }
-         
     res.sendStatus(200)
 
 });
+
+
+async function deleteUsers() {
+
+    try {
+        const usersArray = await participants.find({}).toArray()
+
+        if (usersArray.length === 0) {
+            return
+        }
+
+        usersArray.forEach(userObj => {
+
+            const { _id, name } = userObj
+            const now = dayjs()
+            const minusTime = Number(Date.now() - userObj.lastStatus)
+            const validateUser = participants.findOne({ name: name })
+
+
+            if (minusTime >= 10000 || !validateUser) {
+
+                try {
+                    participants.deleteOne({ _id: _id })
+                    console.log("deleted")
+                    messages.insertOne({
+                        from: `${name}`,
+                        to: 'Todos',
+                        text: 'sai da sala...',
+                        type: 'status',
+                        time: `${now.format('HH:mm:ss')}`
+                    })
+
+                }
+                catch (error) { console.log(error.message) }
+
+
+            }
+
+        })
+
+
+    } catch (error) {
+        console.log(error.message)
+    }
+
+}
+
+
+setInterval(deleteUsers, 5000);
+
 
 
 app.listen(5000, () => console.log("running in port 5000"))
